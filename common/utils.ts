@@ -1,12 +1,14 @@
-import { spawn, SpawnOptions } from 'child_process';
+﻿import { spawn, SpawnOptions } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
 import { SvnConfig, SvnResponse, SvnError, SvnInfo, SvnStatus, SvnLogEntry, SVN_STATUS_CODES } from './types.js';
 import iconv from 'iconv-lite';
 
+const FALLBACK_ENCODINGS = ['gb18030', 'cp936', 'big5', 'shift_jis', 'euc-kr', 'windows-1252'] as const;
+
 /**
- * Crear configuración de SVN desde variables de entorno y parámetros
+ * Create SVN configuration from environment variables and overrides
  */
 export function createSvnConfig(overrides: Partial<SvnConfig> = {}): SvnConfig {
   return {
@@ -19,7 +21,7 @@ export function createSvnConfig(overrides: Partial<SvnConfig> = {}): SvnConfig {
 }
 
 /**
- * Validar que SVN esté disponible en el sistema
+ * Validate that SVN is available on the system
  */
 export async function validateSvnInstallation(config: SvnConfig): Promise<boolean> {
   try {
@@ -31,7 +33,7 @@ export async function validateSvnInstallation(config: SvnConfig): Promise<boolea
 }
 
 /**
- * Detectar si el directorio actual es un working copy de SVN
+ * Detect whether the current directory is an SVN working copy
  */
 export async function isWorkingCopy(workingDirectory: string): Promise<boolean> {
   try {
@@ -43,14 +45,14 @@ export async function isWorkingCopy(workingDirectory: string): Promise<boolean> 
 }
 
 /**
- * Normalizar rutas para Windows
+ * Normalize paths for Windows
  */
 export function normalizePath(filePath: string): string {
   return path.resolve(filePath).replace(/\\/g, '/');
 }
 
 /**
- * Escapar argumentos para línea de comandos en Windows
+ * Escape command-line arguments on Windows
  */
 export function escapeArgument(arg: string): string {
   // Si el argumento contiene espacios o caracteres especiales, lo encerramos en comillas
@@ -61,7 +63,7 @@ export function escapeArgument(arg: string): string {
 }
 
 /**
- * Construir argumentos de autenticación
+ * Build authentication arguments
  */
 export function buildAuthArgs(config: SvnConfig, options: { noAuthCache?: boolean } = {}): string[] {
   const args: string[] = [];
@@ -74,10 +76,10 @@ export function buildAuthArgs(config: SvnConfig, options: { noAuthCache?: boolea
     args.push('--password', config.password);
   }
   
-  // Siempre usar --non-interactive para evitar prompts
+  // Always use --non-interactive to avoid prompts
   args.push('--non-interactive');
   
-  // Opción para no usar cache de credenciales (útil para E215004)
+  // Option to disable the credentials cache (useful for E215004)
   if (options.noAuthCache) {
     args.push('--no-auth-cache');
   }
@@ -86,7 +88,7 @@ export function buildAuthArgs(config: SvnConfig, options: { noAuthCache?: boolea
 }
 
 /**
- * Ejecutar comando SVN con manejo de errores mejorado
+ * Execute an SVN command with improved error handling
  */
 export async function executeSvnCommand(
   config: SvnConfig,
@@ -95,15 +97,15 @@ export async function executeSvnCommand(
 ): Promise<SvnResponse> {
   const startTime = Date.now();
   
-  // Agregar argumentos de autenticación
+  // Add authentication arguments
   const finalArgs = [...args, ...buildAuthArgs(config, { noAuthCache: options.noAuthCache })];
   const command = `${config.svnPath} ${finalArgs.join(' ')}`;
   
   return new Promise((resolve, reject) => {
-    // Configurar opciones de spawn para Windows
+    // Configure spawn options for Windows
     const spawnOptions: SpawnOptions = {
       cwd: config.workingDirectory,
-      shell: true, // Importante para Windows
+      shell: true, // Important for Windows
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
@@ -115,44 +117,35 @@ export async function executeSvnCommand(
     
     const childProcess = spawn(config.svnPath!, finalArgs, spawnOptions);
     
-    let stdout = '';
-    let stderr = '';
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
     
-    // Create streaming decoders to properly handle multi-byte characters across chunk boundaries
-    // Using UTF-8 as SVN output is configured to use UTF-8 via LANG/LC_ALL environment variables
-    // The encoding is consistent throughout the stream - it doesn't change mid-stream as per SVN behavior
-    const stdoutDecoder = iconv.getDecoder('utf8', { stripBOM: false, addBOM: false });
-    const stderrDecoder = iconv.getDecoder('utf8', { stripBOM: false, addBOM: false });
-    
-    // Configurar timeout
+    // Configure timeout
     const timeout = setTimeout(() => {
       childProcess.kill('SIGTERM');
       reject(new SvnError(`Command timeout after ${config.timeout}ms: ${command}`));
     }, config.timeout);
     
-    // Capturar stdout using streaming decoder to handle multi-byte characters correctly
     childProcess.stdout?.on('data', (data) => {
-      stdout += stdoutDecoder.write(data);
+      stdoutChunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
     });
     
-    // Capturar stderr using streaming decoder to handle multi-byte characters correctly
     childProcess.stderr?.on('data', (data) => {
-      stderr += stderrDecoder.write(data);
+      stderrChunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
     });
     
-    // Enviar input si se proporciona
+    // Send input if provided
     if (options.input && childProcess.stdin) {
       childProcess.stdin.write(options.input);
       childProcess.stdin.end();
     }
     
-    // Manejar finalización del proceso
+    // Handle process completion
     childProcess.on('close', (code) => {
       clearTimeout(timeout);
       
-      // Finalize decoders to flush any remaining buffered data
-      stdout += stdoutDecoder.end();
-      stderr += stderrDecoder.end();
+      const stdout = decodeSvnOutput(Buffer.concat(stdoutChunks));
+      const stderr = decodeSvnOutput(Buffer.concat(stderrChunks));
       
       const executionTime = Date.now() - startTime;
       const response: SvnResponse = {
@@ -178,7 +171,7 @@ export async function executeSvnCommand(
       }
     });
     
-    // Manejar errores del proceso
+    // Handle process errors
     childProcess.on('error', (error) => {
       clearTimeout(timeout);
       
@@ -191,14 +184,14 @@ export async function executeSvnCommand(
 }
 
 /**
- * Parsear output XML de SVN
+ * Parse SVN XML output
  */
 export function parseXmlOutput(xmlString: string): any {
-  // Implementación básica de parsing XML
-  // En un entorno de producción, sería mejor usar una librería como xml2js
+  // Basic XML parsing implementation
+  // In production, a library such as xml2js would be a better choice
   try {
-    // Esta es una implementación simplificada para Node.js
-    // En navegadores se usaría DOMParser, pero en Node.js necesitamos otra aproximación
+    // This is a simplified implementation for Node.js
+    // Browsers would use DOMParser, but Node.js needs a different approach
     const lines = xmlString.split('\n');
     const result: any = {};
     
@@ -216,7 +209,7 @@ export function parseXmlOutput(xmlString: string): any {
 }
 
 /**
- * Parsear información de svn info
+ * Parse svn info output
  */
 export function parseInfoOutput(output: string): SvnInfo {
   const lines = output.split('\n');
@@ -276,7 +269,7 @@ export function parseInfoOutput(output: string): SvnInfo {
 }
 
 /**
- * Parsear output de svn status
+ * Parse svn status output
  */
 export function parseStatusOutput(output: string): SvnStatus[] {
   const lines = output.split('\n').filter(line => line.trim());
@@ -301,16 +294,20 @@ export function parseStatusOutput(output: string): SvnStatus[] {
 }
 
 /**
- * Parsear output de svn log
+ * Parse svn log output
  */
 export function parseLogOutput(output: string): SvnLogEntry[] {
+  if (output.trim().startsWith('<')) {
+    return sortLogEntriesDesc(parseLogXmlOutput(output));
+  }
+
   const entries: SvnLogEntry[] = [];
   
   if (!output || output.trim().length === 0) {
     return entries;
   }
   
-  // Dividir por las líneas separadoras de SVN log
+  // Split by SVN log separator lines
   const logEntries = output.split(/^-{72}$/gm).filter(entry => entry.trim());
   
   for (const entryText of logEntries) {
@@ -318,7 +315,7 @@ export function parseLogOutput(output: string): SvnLogEntry[] {
     if (lines.length < 2) continue;
     
     const headerLine = lines[0];
-    // Patrón más flexible para el header
+    // More flexible header pattern
     const headerMatch = headerLine.match(/^r(\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(.*)$/);
     
     if (headerMatch) {
@@ -330,7 +327,7 @@ export function parseLogOutput(output: string): SvnLogEntry[] {
           revision: parseInt(revision, 10),
           author: author.trim(),
           date: date.trim(),
-          message: message || 'Sin mensaje'
+          message: message || 'No message'
         });
       } catch (parseError) {
         console.warn(`Warning: Failed to parse log entry: ${parseError}`);
@@ -339,11 +336,145 @@ export function parseLogOutput(output: string): SvnLogEntry[] {
     }
   }
   
+  return sortLogEntriesDesc(entries);
+}
+
+function parseLogXmlOutput(output: string): SvnLogEntry[] {
+  const entries: SvnLogEntry[] = [];
+  const entryPattern = /<logentry\s+revision="(\d+)">([\s\S]*?)<\/logentry>/g;
+
+  for (const match of output.matchAll(entryPattern)) {
+    const revision = parseInt(match[1], 10);
+    const body = match[2];
+    const author = extractXmlTag(body, 'author') || 'unknown';
+    const date = extractXmlTag(body, 'date') || '';
+    const message = extractXmlTag(body, 'msg') || 'No message';
+
+    entries.push({
+      revision,
+      author,
+      date,
+      message
+    });
+  }
+
   return entries;
 }
 
+function sortLogEntriesDesc(entries: SvnLogEntry[]): SvnLogEntry[] {
+  return [...entries].sort((a, b) => b.revision - a.revision);
+}
+
+function extractXmlTag(xml: string, tagName: string): string | undefined {
+  const match = xml.match(new RegExp(`<${tagName}>([\\s\\S]*?)<\\/${tagName}>`));
+  if (!match) {
+    return undefined;
+  }
+
+  return decodeXmlEntities(match[1].trim());
+}
+
+function decodeXmlEntities(value: string): string {
+  return value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, '\'')
+    .replace(/&amp;/g, '&');
+}
+
+export function decodeSvnOutput(buffer: Buffer): string {
+  if (buffer.length === 0) {
+    return '';
+  }
+
+  if (isValidUtf8(buffer)) {
+    return iconv.decode(buffer, 'utf8');
+  }
+
+  let best = {
+    text: iconv.decode(buffer, 'utf8'),
+    score: scoreDecodedText(iconv.decode(buffer, 'utf8'))
+  };
+
+  for (const encoding of FALLBACK_ENCODINGS) {
+    const candidate = iconv.decode(buffer, encoding);
+    const score = scoreDecodedText(candidate);
+
+    if (score < best.score) {
+      best = { text: candidate, score };
+    }
+  }
+
+  return best.text;
+}
+
+function scoreDecodedText(text: string): number {
+  let score = 0;
+
+  for (const char of text) {
+    const code = char.charCodeAt(0);
+
+    if (char === '\uFFFD') {
+      score += 10;
+      continue;
+    }
+
+    if (code < 32 && char !== '\n' && char !== '\r' && char !== '\t') {
+      score += 3;
+    }
+  }
+
+  return score;
+}
+
+function isValidUtf8(buffer: Buffer): boolean {
+  let i = 0;
+
+  while (i < buffer.length) {
+    const byte = buffer[i];
+
+    if (byte <= 0x7F) {
+      i += 1;
+      continue;
+    }
+
+    let extraBytes = 0;
+
+    if ((byte & 0xE0) === 0xC0) {
+      extraBytes = 1;
+      if (byte < 0xC2) {
+        return false;
+      }
+    } else if ((byte & 0xF0) === 0xE0) {
+      extraBytes = 2;
+    } else if ((byte & 0xF8) === 0xF0) {
+      extraBytes = 3;
+      if (byte > 0xF4) {
+        return false;
+      }
+    } else {
+      return false;
+    }
+
+    if (i + extraBytes >= buffer.length) {
+      return false;
+    }
+
+    for (let j = 1; j <= extraBytes; j += 1) {
+      if ((buffer[i + j] & 0xC0) !== 0x80) {
+        return false;
+      }
+    }
+
+    i += extraBytes + 1;
+  }
+
+  return true;
+}
+
 /**
- * Formatear duración en milisegundos a formato legible
+ * Format a duration in milliseconds to a readable string
  */
 export function formatDuration(milliseconds: number): string {
   if (milliseconds < 1000) {
@@ -361,29 +492,29 @@ export function formatDuration(milliseconds: number): string {
 }
 
 /**
- * Validar nombre de archivo/directorio
+ * Validate a file or directory path
  */
 export function validatePath(filePath: string): boolean {
-  // Verificar que no contenga caracteres prohibidos en Windows
-  // Pero permitir dos puntos en contextos válidos (drive letters en Windows)
+  // Check that it does not contain invalid Windows characters
+  // Allow colons in valid contexts such as Windows drive letters
   
-  // Patrón para detectar rutas absolutas de Windows (C:, D:, etc.)
+  // Pattern used to detect absolute Windows paths (C:, D:, etc.)
   const windowsAbsolutePathPattern = /^[A-Za-z]:[\\\/]/;
   
   if (windowsAbsolutePathPattern.test(filePath)) {
-    // Para rutas absolutas de Windows, verificar solo después del drive letter
-    const pathAfterDrive = filePath.substring(2); // Quitar "C:" o similar
+    // For absolute Windows paths, validate only after the drive letter
+    const pathAfterDrive = filePath.substring(2); // Remove "C:" or similar
     const invalidChars = /[<>:"|?*]/;
     return !invalidChars.test(pathAfterDrive);
   } else {
-    // Para todas las demás rutas, aplicar validación completa
+    // Apply full validation for all other paths
     const invalidChars = /[<>:"|?*]/;
     return !invalidChars.test(filePath);
   }
 }
 
 /**
- * Obtener rutas relativas desde el directorio de trabajo
+ * Get relative paths from the working directory
  */
 export function getRelativePath(fullPath: string, workingDirectory: string): string {
   return path.relative(workingDirectory, fullPath).replace(/\\/g, '/');
@@ -398,17 +529,17 @@ export function validateSvnUrl(url: string): boolean {
 }
 
 /**
- * Limpiar y normalizar salida de comando
+ * Clean and normalize command output
  */
 export function cleanOutput(output: string): string {
   return output
-    .replace(/\r\n/g, '\n')  // Normalizar line endings
-    .replace(/\r/g, '\n')    // Convertir CR a LF
+    .replace(/\r\n/g, '\n')  // Normalize line endings
+    .replace(/\r/g, '\n')    // Convert CR to LF
     .trim();
 }
 
 /**
- * Crear mensaje de error SVN más descriptivo
+ * Create a more descriptive SVN error
  */
 export function createSvnError(message: string, command?: string, stderr?: string): SvnError {
   const error = new SvnError(message);
@@ -418,34 +549,37 @@ export function createSvnError(message: string, command?: string, stderr?: strin
 }
 
 /**
- * Limpiar cache de credenciales SVN para resolver errores E215004
+ * Clear the SVN credentials cache to resolve E215004 errors
  */
 export async function clearSvnCredentials(config: SvnConfig): Promise<SvnResponse> {
   try {
-    // En sistemas Unix/Linux, SVN guarda credenciales en ~/.subversion/auth
+    // On Unix/Linux systems, SVN stores credentials in ~/.subversion/auth
     // En Windows, en %APPDATA%\Subversion\auth
-    // Intentar limpiar usando el comando auth específico si está disponible
+    // Try clearing credentials with the dedicated auth command when available
     
-    // Primero intentar con el comando de limpieza estándar
+    // First try the standard cleanup command
     return await executeSvnCommand(config, ['auth', '--remove'], { noAuthCache: true });
   } catch (error: any) {
-    // Si el comando auth no está disponible, intentar alternativa
+    // If the auth command is not available, try an alternative
     try {
-      // Como fallback, usar un comando que no guarde credenciales
+      // As a fallback, use a command that does not store credentials
       const response = await executeSvnCommand(config, ['info', '--non-interactive'], { noAuthCache: true });
       return {
         success: true,
-        data: 'Cache de credenciales limpiado (usando método alternativo)',
+        data: 'Credentials cache cleared (using alternative method)',
         command: 'clear-credentials',
         workingDirectory: config.workingDirectory!
       };
     } catch (fallbackError: any) {
       return {
         success: false,
-        error: `No se pudo limpiar el cache de credenciales: ${fallbackError.message}`,
+        error: `Unable to clear the credentials cache: ${fallbackError.message}`,
         command: 'clear-credentials',
         workingDirectory: config.workingDirectory!
       };
     }
   }
 } 
+
+
+

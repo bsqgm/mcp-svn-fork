@@ -1,193 +1,31 @@
-# SVN MCP Server
+﻿# SVN MCP Server
 
-Un servidor MCP (Model Context Protocol) completo para integración con Subversion (SVN), diseñado para permitir a agentes de IA gestionar repositorios SVN de manera eficiente.
+A full MCP (Model Context Protocol) server for working with Subversion (SVN). It exposes common SVN operations so AI agents can inspect repositories, review changes, and perform routine version-control workflows.
 
-## 🎯 Características
+## Features
 
-- ✅ **Operaciones básicas de repositorio**: info, status, log, diff, checkout, update
-- ✅ **Gestión de archivos**: add, commit, delete, revert
-- ✅ **Herramientas de mantenimiento**: cleanup
-- 🔄 **Gestión de ramas**: (En desarrollo)
-- 🔄 **Operaciones avanzadas**: merge, switch, properties (En desarrollo)
-- 🔄 **Herramientas de análisis**: blame, conflict detection (En desarrollo)
-- 🔄 **Operaciones en lote**: (En desarrollo)
+- Repository operations: `info`, `status`, `log`, `diff`, `checkout`, `update`
+- File operations: `add`, `commit`, `delete`, `revert`
+- Maintenance tools: `cleanup`, `health check`, `diagnostics`, credential cache cleanup
+- Typed tool schemas powered by Zod
+- Windows-friendly process execution and path handling
+- Output decoding for non-UTF-8 SVN responses
 
-## 📋 Requisitos
+## Requirements
 
-- **Node.js** >= 18.0.0
-- **Subversion (SVN)** instalado y disponible en PATH
-- **TypeScript** (para desarrollo)
+- Node.js 18+
+- Subversion (SVN) installed and available in `PATH`
+- TypeScript for local development
 
-### 🔍 Detectar instalación de SVN
+## Install
 
-#### Verificar si SVN está instalado
-
-```bash
-# Comando básico para verificar SVN
-svn --version
-
-# Verificar ruta completa del ejecutable
-where svn        # Windows
-which svn        # Linux/Mac
-
-# Verificar cliente SVN completo
-svn --version --verbose
-```
-
-#### Salida esperada si SVN está correctamente instalado:
-
-```
-svn, version 1.14.x (r1876290)
-   compiled Apr 13 2023, 17:22:07 on x86_64-pc-mingw32
-
-Copyright (C) 2023 The Apache Software Foundation.
-This software consists of contributions made by many people;
-see the NOTICE file for more information.
-Subversion is open source software, see http://subversion.apache.org/
-```
-
-#### ❌ Errores comunes si SVN NO está instalado:
-
-```bash
-# Windows
-'svn' is not recognized as an internal or external command
-
-# Linux/Mac  
-svn: command not found
-bash: svn: command not found
-```
-
-#### 🛠️ Diagnóstico avanzado
-
-```bash
-# Verificar PATH del sistema
-echo $PATH                    # Linux/Mac
-echo %PATH%                   # Windows CMD
-$env:PATH                     # Windows PowerShell
-
-# Buscar executables SVN en el sistema
-find / -name "svn" 2>/dev/null           # Linux
-Get-ChildItem -Path C:\ -Name "svn.exe" -Recurse -ErrorAction SilentlyContinue  # Windows PowerShell
-
-# Verificar versión específica del cliente
-svn --version | head -1       # Obtener solo la primera línea con la versión
-```
-
-### 💾 Instalar SVN en Windows
-
-#### Opción 1: Gestores de paquetes
-
-```bash
-# Usando Chocolatey (Recomendado)
-choco install subversion
-
-# Usando winget
-winget install CollabNet.Subversion
-
-# Usando Scoop
-scoop install subversion
-```
-
-#### Opción 2: Instaladores oficiales
-
-1. **TortoiseSVN** (incluye cliente de línea de comandos):
-   ```
-   https://tortoisesvn.net/downloads.html
-   ✅ Incluye cliente GUI y CLI
-   ✅ Integración con Windows Explorer
-   ```
-
-2. **SlikSVN** (solo línea de comandos):
-   ```
-   https://sliksvn.com/download/
-   ✅ Ligero (solo CLI)
-   ✅ Ideal para automatización
-   ```
-
-3. **CollabNet Subversion**:
-   ```
-   https://www.collab.net/downloads/subversion
-   ✅ Versión empresarial
-   ✅ Soporte comercial disponible
-   ```
-
-#### Opción 3: Visual Studio o Git for Windows
-
-```bash
-# Si tienes Git for Windows instalado, puede incluir SVN
-git svn --version
-
-# Visual Studio también puede incluir SVN
-# Ir a: Visual Studio Installer > Modify > Individual Components > Subversion
-```
-
-### 🐧 Instalar SVN en Linux
-
-```bash
-# Ubuntu/Debian
-sudo apt-get update
-sudo apt-get install subversion
-
-# CentOS/RHEL/Fedora
-sudo yum install subversion        # CentOS 7
-sudo dnf install subversion        # CentOS 8/Fedora
-
-# Arch Linux
-sudo pacman -S subversion
-
-# Alpine Linux
-sudo apk add subversion
-```
-
-### 🍎 Instalar SVN en macOS
-
-```bash
-# Homebrew (Recomendado)
-brew install subversion
-
-# MacPorts
-sudo port install subversion
-
-# Desde Xcode Command Line Tools (puede estar incluido)
-xcode-select --install
-```
-
-### 🔧 Configurar SVN después de la instalación
-
-#### Verificar configuración global
-
-```bash
-# Ver configuración actual
-svn config --list
-
-# Configurar usuario global
-svn config --global auth:username tu_usuario
-
-# Configurar editor por defecto
-svn config --global editor "code --wait"     # VS Code
-svn config --global editor "notepad"         # Windows Notepad
-svn config --global editor "nano"            # Linux/Mac nano
-```
-
-#### Verificar acceso a repositorios
-
-```bash
-# Probar conexión a repositorio (sin hacer checkout)
-svn list https://svn.ejemplo.com/repo/trunk
-
-# Probar con credenciales específicas
-svn list https://svn.ejemplo.com/repo/trunk --username usuario --password contraseña
-```
-
-## 🚀 Instalación
-
-### Desde NPM
+### From npm
 
 ```bash
 npm install -g @grec0/mcp-svn
 ```
 
-### Desarrollo Local
+### Local development
 
 ```bash
 git clone https://github.com/gcorroto/mcp-svn.git
@@ -196,19 +34,19 @@ npm install
 npm run build
 ```
 
-## ⚙️ Configuración
+## Configuration
 
-### Variables de Entorno
+Environment variables:
 
-| Variable | Descripción | Por Defecto |
-|----------|-------------|-------------|
-| `SVN_PATH` | Ruta del ejecutable SVN | `svn` |
-| `SVN_WORKING_DIRECTORY` | Directorio de trabajo | `process.cwd()` |
-| `SVN_USERNAME` | Usuario para autenticación | - |
-| `SVN_PASSWORD` | Contraseña para autenticación | - |
-| `SVN_TIMEOUT` | Timeout en milisegundos | `30000` |
+| Variable | Description | Default |
+| --- | --- | --- |
+| `SVN_PATH` | Path to the SVN executable | `svn` |
+| `SVN_WORKING_DIRECTORY` | Working directory | `process.cwd()` |
+| `SVN_USERNAME` | SVN username | unset |
+| `SVN_PASSWORD` | SVN password | unset |
+| `SVN_TIMEOUT` | Command timeout in milliseconds | `30000` |
 
-### Ejemplo de configuración MCP
+Example MCP configuration:
 
 ```json
 {
@@ -219,313 +57,160 @@ npm run build
       "env": {
         "SVN_PATH": "svn",
         "SVN_WORKING_DIRECTORY": "/path/to/working/copy",
-        "SVN_USERNAME": "tu_usuario",
-        "SVN_PASSWORD": "tu_contraseña"
+        "SVN_USERNAME": "your_username",
+        "SVN_PASSWORD": "your_password"
       }
     }
   }
 }
 ```
 
-## 🛠️ Herramientas Disponibles
+## Verify SVN
 
-### Operaciones Básicas
-
-#### `svn_health_check`
-Verificar el estado de salud del sistema SVN y working copy.
-
+```bash
+svn --version
+where svn        # Windows
+which svn        # Linux/macOS
+svn --version --verbose
 ```
+
+If SVN is not installed, common errors include:
+
+```text
+'svn' is not recognized as an internal or external command
+svn: command not found
+```
+
+## Available Tools
+
+### Basic operations
+
+`svn_health_check()`
+Check SVN availability and working copy health.
+
+`svn_info(path?: string)`
+Get detailed information for the working copy or a specific file.
+
+`svn_status(path?: string, showAll?: boolean)`
+Show file status in the working copy.
+
+`svn_log(path?: string, limit?: number, revision?: string)`
+Show commit history from the repository.
+
+`svn_diff(path?: string, oldRevision?: string, newRevision?: string)`
+Show differences between file revisions.
+
+`svn_checkout(url: string, path?: string, revision?: number | "HEAD")`
+Check out an SVN repository.
+
+`svn_update(path?: string, revision?: number | "HEAD" | "BASE" | "COMMITTED" | "PREV")`
+Update the working copy.
+
+### File operations
+
+`svn_add(paths: string | string[])`
+Add files to version control.
+
+`svn_commit(message: string, paths?: string[])`
+Commit changes to the repository.
+
+`svn_delete(paths: string | string[])`
+Delete files from version control.
+
+`svn_revert(paths: string | string[])`
+Revert local file changes.
+
+### Maintenance
+
+`svn_cleanup(path?: string)`
+Clean up interrupted working copy operations.
+
+`svn_diagnose()`
+Run targeted diagnostics for local and remote SVN commands.
+
+`svn_clear_credentials()`
+Clear cached SVN credentials to help resolve repeated authentication failures.
+
+## Usage Examples
+
+```ts
+// Check that SVN is available and the working copy is valid
 svn_health_check()
+
+// Inspect the repository
+svn_info()
+svn_status(undefined, true)
+svn_log(undefined, 10)
+svn_diff("src/index.ts")
+
+// Work with files
+svn_add(["src/new-file.ts"])
+svn_commit("Add new file")
+svn_revert(["src/index.ts"])
+
+// Maintenance
+svn_cleanup()
+svn_clear_credentials()
 ```
 
-#### `svn_info`
-Obtener información detallada del working copy o archivo específico.
-
-```
-svn_info(path?: string)
-```
-
-#### `svn_status` 
-Ver el estado de archivos en el working copy.
-
-```
-svn_status(path?: string, showAll?: boolean)
-```
-
-#### `svn_log`
-Ver historial de commits del repositorio.
-
-```
-svn_log(path?: string, limit?: number, revision?: string)
-```
-
-#### `svn_diff`
-Ver diferencias entre versiones de archivos.
-
-```
-svn_diff(path?: string, oldRevision?: string, newRevision?: string)
-```
-
-### Operaciones de Repositorio
-
-#### `svn_checkout`
-Hacer checkout de un repositorio SVN.
-
-```
-svn_checkout(
-  url: string,
-  path?: string,
-  revision?: number | "HEAD",
-  depth?: "empty" | "files" | "immediates" | "infinity",
-  force?: boolean,
-  ignoreExternals?: boolean
-)
-```
-
-#### `svn_update`
-Actualizar working copy desde el repositorio.
-
-```
-svn_update(
-  path?: string,
-  revision?: number | "HEAD" | "BASE" | "COMMITTED" | "PREV",
-  force?: boolean,
-  ignoreExternals?: boolean,
-  acceptConflicts?: "postpone" | "base" | "mine-conflict" | "theirs-conflict" | "mine-full" | "theirs-full"
-)
-```
-
-### Gestión de Archivos
-
-#### `svn_add`
-Añadir archivos al control de versiones.
-
-```
-svn_add(
-  paths: string | string[],
-  force?: boolean,
-  noIgnore?: boolean,
-  parents?: boolean,
-  autoProps?: boolean,
-  noAutoProps?: boolean
-)
-```
-
-#### `svn_commit`
-Confirmar cambios al repositorio.
-
-```
-svn_commit(
-  message: string,
-  paths?: string[],
-  file?: string,
-  force?: boolean,
-  keepLocks?: boolean,
-  noUnlock?: boolean
-)
-```
-
-#### `svn_delete`
-Eliminar archivos del control de versiones.
-
-```
-svn_delete(
-  paths: string | string[],
-  message?: string,
-  force?: boolean,
-  keepLocal?: boolean
-)
-```
-
-#### `svn_revert`
-Revertir cambios locales en archivos.
-
-```
-svn_revert(paths: string | string[])
-```
-
-### Herramientas de Mantenimiento
-
-#### `svn_cleanup`
-Limpiar working copy de operaciones interrumpidas.
-
-```
-svn_cleanup(path?: string)
-```
-
-## 📖 Ejemplos de Uso
-
-### Verificar estado del sistema
-
-```javascript
-// Verificar que SVN esté disponible y el working copy sea válido
-const healthCheck = await svn_health_check();
-```
-
-### Obtener información del repositorio
-
-```javascript
-// Información general del working copy
-const info = await svn_info();
-
-// Información de un archivo específico
-const fileInfo = await svn_info("src/main.js");
-```
-
-### Ver estado de archivos
-
-```javascript
-// Estado de todos los archivos
-const status = await svn_status();
-
-// Estado con información remota
-const fullStatus = await svn_status(null, true);
-```
-
-### Hacer checkout de un repositorio
-
-```javascript
-const checkout = await svn_checkout(
-  "https://svn.example.com/repo/trunk",
-  "local-copy",
-  "HEAD",
-  "infinity",
-  false,
-  false
-);
-```
-
-### Confirmar cambios
-
-```javascript
-// Añadir archivos
-await svn_add(["src/new-file.js", "docs/readme.md"], { parents: true });
-
-// Hacer commit
-await svn_commit(
-  "Add new feature and documentation",
-  ["src/new-file.js", "docs/readme.md"]
-);
-```
-
-## 🧪 Testing
+## Scripts
 
 ```bash
-# Ejecutar tests
-npm test
-
-# Tests con cobertura
-npm run test -- --coverage
-
-# Tests en modo watch
-npm run test -- --watch
-```
-
-## 🏗️ Desarrollo
-
-### Scripts disponibles
-
-```bash
-# Compilar TypeScript
 npm run build
-
-# Modo desarrollo
+npm run test
 npm run dev
-
-# Modo watch
-npm run watch
-
-# Inspector MCP
 npm run inspector
-
-# Tests
-npm test
-
-# Publicar nueva versión
-npm run release:patch
-npm run release:minor
-npm run release:major
 ```
 
-### Estructura del proyecto
+## Project Structure
 
-```
-svn-mcp/
-├── package.json
-├── tsconfig.json
-├── jest.config.js
-├── index.ts
-├── common/
-│   ├── types.ts      # Tipos TypeScript
-│   ├── utils.ts      # Utilidades para SVN
-│   └── version.ts    # Versión del paquete
-├── tools/
-│   └── svn-service.ts # Servicio principal SVN
-├── tests/
-│   └── integration.test.ts # Tests de integración
-└── README.md
+```text
+common/
+  types.ts
+  utils.ts
+  version.ts
+tools/
+  svn-service.ts
+tests/
+  *.test.ts
+index.ts
 ```
 
-## 📊 Estado del Desarrollo
+## Development Status
 
-Ver el archivo [SVN_MCP_IMPLEMENTATION.md](./SVN_MCP_IMPLEMENTATION.md) para el checklist completo de implementación.
+See [SVN_MCP_IMPLEMENTATION.md](./SVN_MCP_IMPLEMENTATION.md) for the implementation checklist.
 
-**Progreso actual:** Etapa 1 completada (Operaciones Básicas) ✅
+Current status: core repository and file operations are implemented.
 
-**Próximas etapas:**
-- Gestión de ramas (branching)
-- Operaciones avanzadas (merge, switch)
-- Herramientas de análisis
-- Operaciones en lote
+Planned next areas:
 
-## 🐛 Troubleshooting
+- Branching support
+- Advanced SVN operations
+- Analysis and reporting tools
+- Batch workflows
 
-### SVN no encontrado
+## Troubleshooting
 
-```
-Error: SVN is not available in the system PATH
-```
+- SVN not found: install Subversion and ensure it is available in `PATH`.
+- Not a working copy: run commands inside an SVN checkout or perform `svn checkout` first.
+- Authentication problems: set `SVN_USERNAME` and `SVN_PASSWORD`, or run `svn_clear_credentials()`.
+- Long-running commands timing out: increase `SVN_TIMEOUT`.
 
-**Solución:** Instalar SVN y asegurarse de que esté en el PATH del sistema.
+See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for more details.
 
-### No es un working copy
+## License
 
-```
-Error: Failed to get SVN info: svn: warning: W155007: '.' is not a working copy
-```
+MIT. See [LICENSE](./LICENSE).
 
-**Solución:** Navegar a un directorio que sea un working copy de SVN o hacer checkout primero.
+## Contributing
 
-### Problemas de autenticación
+1. Fork the repository.
+2. Create a feature branch.
+3. Commit your changes.
+4. Open a pull request.
 
-```
-Error: svn: E170001: Authentication failed
-```
+## Links
 
-**Solución:** Configurar las variables de entorno `SVN_USERNAME` y `SVN_PASSWORD`.
-
-### Timeout en operaciones largas
-
-```
-Error: Command timeout after 30000ms
-```
-
-**Solución:** Incrementar el valor de `SVN_TIMEOUT`.
-
-## 📄 Licencia
-
-MIT License - ver [LICENSE](LICENSE) para más detalles.
-
-## 🤝 Contribuir
-
-1. Fork el proyecto
-2. Crear una rama feature (`git checkout -b feature/nueva-caracteristica`)
-3. Commit los cambios (`git commit -am 'Add nueva caracteristica'`)
-4. Push a la rama (`git push origin feature/nueva-caracteristica`)
-5. Crear un Pull Request
-
-## 📞 Soporte
-
-- **Issues:** [GitHub Issues](https://github.com/gcorroto/mcp-svn/issues)
-- **Documentación:** [Wiki del proyecto](https://github.com/gcorroto/mcp-svn/wiki)
-- **Email:** soporte@grec0.dev 
+- Repository: <https://github.com/gcorroto/mcp-svn>
+- Issues: <https://github.com/gcorroto/mcp-svn/issues>
+- Project wiki: <https://github.com/gcorroto/mcp-svn/wiki>

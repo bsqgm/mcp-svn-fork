@@ -1,4 +1,4 @@
-// ===== TIPOS BASE =====
+﻿// ===== TIPOS BASE =====
 
 export interface SvnConfig {
   svnPath?: string;
@@ -28,7 +28,7 @@ export class SvnError extends Error {
   }
 }
 
-// ===== TIPOS DE INFORMACIÓN DEL REPOSITORIO =====
+// ===== REPOSITORY INFORMATION TYPES =====
 
 export interface SvnInfo {
   path: string;
@@ -245,7 +245,7 @@ export interface SvnExportOptions {
   ignoreExternals?: boolean;
 }
 
-// ===== TIPOS PARA HERRAMIENTAS DE ANÁLISIS =====
+// ===== ANALYSIS TOOL TYPES =====
 
 export interface SvnWorkingCopySummary {
   info: SvnInfo;
@@ -323,3 +323,4 @@ export const SVN_ACTION_CODES = {
   'M': 'modified',
   'R': 'replaced'
 } as const; 
+

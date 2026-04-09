@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from '@jest/globals';
+﻿import { describe, it, expect, beforeAll } from '@jest/globals';
 import { SvnService } from '../tools/svn-service';
 import { createSvnConfig, validateSvnInstallation } from '../common/utils';
 
@@ -14,7 +14,7 @@ describe('SVN MCP Integration Tests', () => {
 
   describe('SVN Installation', () => {
     it('should detect if SVN is available', async () => {
-      // Este test no falla si SVN no está disponible, solo reporta el estado
+      // This test does not fail when SVN is unavailable; it only reports the state
       console.log(`SVN Available: ${svnAvailable}`);
       expect(typeof svnAvailable).toBe('boolean');
     });
@@ -28,7 +28,7 @@ describe('SVN MCP Integration Tests', () => {
       expect(result.workingDirectory).toBeDefined();
       expect(typeof result.success).toBe('boolean');
       
-      // El comando puede ser 'health-check' si SVN está disponible o 'svn --version' si no lo está
+      // The command can be 'health-check' when SVN is available or 'svn --version' when it is not
       expect(['health-check', 'svn --version']).toContain(result.command);
       
       if (result.success && result.data) {
@@ -74,7 +74,7 @@ describe('SVN MCP Integration Tests', () => {
     });
   });
 
-  // Solo ejecutar tests que requieren SVN si está disponible
+  // Only run tests that require SVN when it is available
   describe('SVN Commands (requires SVN installation)', () => {
     beforeAll(() => {
       if (!svnAvailable) {
@@ -90,10 +90,10 @@ describe('SVN MCP Integration Tests', () => {
 
       try {
         await svnService.getInfo();
-        // Si llegamos aquí, estamos en un working copy válido
+        // If execution reaches this point, the directory is a valid working copy
         expect(true).toBe(true);
       } catch (error: any) {
-        // Es esperado que falle si no estamos en un working copy
+        // Failure is expected when not running inside a working copy
         expect(error.message).toContain('Failed to get SVN info');
       }
     });
@@ -106,10 +106,10 @@ describe('SVN MCP Integration Tests', () => {
 
       try {
         await svnService.getStatus();
-        // Si llegamos aquí, estamos en un working copy válido
+        // If execution reaches this point, the directory is a valid working copy
         expect(true).toBe(true);
       } catch (error: any) {
-        // Es esperado que falle si no estamos en un working copy
+        // Failure is expected when not running inside a working copy
         expect(error.message).toContain('Failed to get SVN status');
       }
     });

@@ -1,128 +1,103 @@
-# Solución de Errores en MCP SVN
+﻿# Error Handling Notes for MCP SVN
 
-## Problema Reportado
+This note summarizes the fixes added for cases where `svn_status` and `svn_log` could fail with exit code `1` while simpler commands such as `svn_health_check` and `svn_info` still worked.
 
-Las funciones `svn_status` y `svn_log` estaban fallando con código de error 1, mientras que `svn_health_check` y `svn_info` funcionaban correctamente.
+## Changes Made
 
-### Errores Específicos:
-- `svn status --show-updates` fallaba con código 1
-- `svn log --limit 15` fallaba con código 1
+### 1. Safer remote status handling
 
-## Mejoras Implementadas
+- `svn status --show-updates` is attempted first.
+- If it fails, the server falls back to local-only `svn status`.
+- This keeps `svn_status` useful even when the remote repository is temporarily unreachable.
 
-### 1. Manejo Robusto de `svn_status`
-- **Problema**: `--show-updates` requiere acceso al repositorio remoto
-- **Solución**: Intentar primero con `--show-updates`, si falla, usar solo status local
-- **Beneficio**: La función ahora funciona incluso sin conectividad remota
+### 2. Better error messages
 
-### 2. Mejor Manejo de Errores
-- **Mejora**: Mensajes de error más específicos y en español
-- **Códigos de error detectados**:
-  - `E155007`: No es un working copy
-  - `E175002`: Problemas de conexión
-  - `E170001`: Error de autenticación
-  - `E215004`: Demasiados intentos de autenticación (nuevo)
-  - `E155036`: Working copy bloqueado
-  - `E200030`: Error de base de datos SQLite
+The server now classifies common SVN failures more explicitly, including:
 
-### 3. Nueva Función de Diagnóstico
-- **Función**: `svn_diagnose`
-- **Propósito**: Probar comandos individualmente para identificar problemas específicos
-- **Información que proporciona**:
-  - Status local (funciona/falla)
-  - Status remoto (funciona/falla)
-  - Log básico (funciona/falla)
-  - Lista de errores específicos
-  - Sugerencias de solución
+- `E175002`: connectivity problems
+- `E170001`: authentication failure
+- `E215004`: too many failed authentication attempts
+- invalid working copy state
+- locked working copy state
 
-### 4. Nueva Función de Limpieza de Credenciales
-- **Función**: `svn_clear_credentials`
-- **Propósito**: Limpiar cache de credenciales SVN para resolver errores E215004
-- **Beneficio**: Resuelve problemas cuando SVN ha intentado autenticarse demasiadas veces
+### 3. Diagnostic tool
 
-### 5. Parsing Mejorado
-- **svn log**: Parsing más robusto con manejo de casos edge
-- **Validación**: Mejor validación de entrada vacía o malformada
+`svn_diagnose` was added to probe commands individually and report:
 
-## Cómo Usar las Mejoras
+- local status result
+- remote status result
+- basic log result
+- detected errors
+- suggested fixes
 
-### 1. Ejecutar Diagnóstico
-```bash
-# Usar la nueva función de diagnóstico
-svn_diagnose
+### 4. Credential cache cleanup
+
+`svn_clear_credentials` was added to help resolve `E215004` and similar cached-credential issues.
+
+## How to Use the Improvements
+
+### Run diagnostics
+
+```ts
+svn_diagnose()
 ```
 
-### 2. Verificar Estado del Sistema
-```bash
-# Health check básico
-svn_health_check
+### Run a health check
+
+```ts
+svn_health_check()
 ```
 
-### 3. Limpiar Cache de Credenciales (Nuevo)
-```bash
-# Limpiar credenciales cacheadas (para resolver E215004)
-svn_clear_credentials
+### Clear cached credentials
+
+```ts
+svn_clear_credentials()
 ```
 
-### 4. Obtener Status (Mejorado)
-```bash
-# Ahora funciona incluso sin conexión remota
-svn_status
-```
+### Retry status without remote dependency
 
-## Posibles Causas de los Errores Originales
+`svn_status` now automatically falls back to local status when remote update checks fail.
 
-### 1. Problemas de Conectividad
-- Repositorio SVN no accesible
-- Firewall o proxy bloqueando conexiones
-- Servidor SVN temporalmente inaccesible
+## Typical Root Causes
 
-### 2. Problemas de Autenticación
-- Credenciales incorrectas
-- Usuario sin permisos suficientes
-- Sesión de autenticación expirada
+### Connectivity problems
 
-### 3. Problemas del Working Copy
-- Working copy corrupto
-- Base de datos SVN (.svn) dañada
-- Locks de procesos anteriores
+- the SVN server is unreachable
+- a proxy or firewall is blocking traffic
+- the working copy is out of sync with the server
 
-### 4. Configuración del Entorno
-- SVN no está en el PATH
-- Variables de entorno incorrectas
-- Permisos de archivos/directorios
+### Authentication problems
 
-## Soluciones Recomendadas
+- invalid credentials
+- expired authentication session
+- cached bad credentials
 
-### Para Problemas de Conectividad:
-1. Verificar conexión a internet
-2. Probar acceso manual al repositorio
-3. Verificar configuración de proxy/firewall
+### Local working copy problems
 
-### Para Problemas de Autenticación:
-1. Verificar credenciales en variables de entorno
-2. Probar login manual con SVN  
-3. Renovar credenciales si han expirado
-4. **Nuevo:** Si aparece el error E215004 "No more credentials or we tried too many times", usar `svn_clear_credentials` para limpiar el cache de credenciales
+- locked working copy
+- damaged `.svn` metadata
+- invalid working directory
 
-### Para Problemas del Working Copy:
-1. Ejecutar `svn cleanup`
-2. Actualizar el working copy: `svn update`
-3. En casos extremos, hacer checkout nuevamente
+## Recommended Checks
 
-### Para Problemas de Configuración:
-1. Verificar que SVN esté instalado y en PATH
-2. Revisar variables de entorno SVN_*
-3. Verificar permisos de directorio
+### For connectivity
 
-## Testing
+1. Verify internet or network access.
+2. Confirm the SVN server URL is correct.
+3. Check proxy and firewall configuration.
 
-Las mejoras incluyen:
-- Fallback automático cuando fallan comandos remotos
-- Mensajes de error más informativos
-- Función de diagnóstico para identificar problemas específicos
-- Parsing más robusto de outputs de SVN
+### For authentication
 
-## Compatibilidad
+1. Verify `SVN_USERNAME` and `SVN_PASSWORD`.
+2. Try a native SVN command manually.
+3. Clear cached credentials with `svn_clear_credentials()`.
 
-Estas mejoras son compatibles con versiones existentes y no rompen la funcionalidad actual. Solo mejoran la robustez y el manejo de errores. 
+### For local working copy issues
+
+1. Confirm the directory is an SVN checkout.
+2. Run `svn cleanup`.
+3. Verify filesystem permissions.
+
+## Compatibility
+
+These changes are backward compatible. They do not remove existing behavior; they improve resilience and error reporting.
