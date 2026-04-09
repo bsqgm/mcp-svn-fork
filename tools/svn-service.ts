@@ -204,9 +204,11 @@ export class SvnService {
         args.push('--limit', limit.toString());
       }
 
-      if (revision) {
-        args.push('--revision', revision);
-      }
+      // When no explicit revision is provided, default to HEAD:1 so that
+      // commits newer than the working copy's BASE revision are included.
+      // Without this, `svn log` on a working copy uses the range BASE:1 and
+      // will not show commits that happened after the last `svn update`.
+      args.push('--revision', revision || 'HEAD:1');
 
       if (path) {
         if (!validatePath(path)) {
